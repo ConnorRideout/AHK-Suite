@@ -25,13 +25,15 @@ OnExit("Cleanup")
 	*/
 	allScripts := {	"AudioSwitcher" 	: 	"res"
 					; ,"ChromeBookmark" 	: 	"res"
-					,"DesktopFader" 	: 	"rec"
+					; ,"DesktopFader" 	: 	"rec"
+                    ,"FadeWindows"      :   "rec"
 					,"GoogleKeep" 		: 	"rec"
 					; ,"GSyncCycling" 	: 	"rec"
 					; ,"SetOnTop" 		: 	"rec"
                     ,"MinimizeApp"      :   "res"
                     ,"Snipping"         :   "res"
 					,"ToggleResolution"	: 	"res"
+                    ; ,"TransparentWindow":   "res"
 					,"TurboHotkey"		: 	"res"
 					,0:0}
 	sysScripts := {	"Block_Input"					:	"r"

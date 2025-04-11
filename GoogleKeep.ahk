@@ -18,43 +18,45 @@ OnExit("Cleanup")
     ;==== CUSTOMIZATION ====
     ;  ===================
       ;     Variable     |  Value  | Type  |Limits| Description                                        | Notes
-      ;==================|=========|=======|======|====================================================|=============================================================================
-        askToStart      :=  False   ; bool  | T/F  | If Chrome isn't open, ask before starting          | If Chrome is closed, the previous Chrome session is lost when the app starts
+      ;==================|=========|=======|======|====================================================|========================================================================================
+        askToStart      :=  False  ; bool  | T/F  | If Chrome isn't open, ask before starting          | If Chrome is closed, the previous Chrome session is lost when the app starts
         updateInterval  :=  10     ; int   | 1+   | Update polling interval, in milliseconds           |
         textShadow      :=  0      ; int   | 0+   | Size of the text's shadow                          | 0 = default
-      ;=MAKE PRETTY======|=========|=======|======|====================================================|=============================================================================
+      ;=MAKE PRETTY======|=========|=======|======|====================================================|========================================================================================
         winBorder       :=  8      ; int   | 0+   | The window's border (cropped off all sides)        |
         topMargin       :=  27     ; int   | 0+   | Titlebar height (cropped off the top)              |
-      ;=APP GEOMETRY=====|=========|=======|======|====================================================|=============================================================================
+      ;=APP GEOMETRY=====|=========|=======|======|====================================================|========================================================================================
         appX            :=  1935   ; int   | 0+   | Horizontal position to place the app               |
         appY            :=  300    ; int   | 0+   | Vertical position to place the app                 |
         appW            :=  625    ; int   | 0+   | Width when faded in                                |
         appH            :=  850    ; int   | 0+   | Height when faded in                               |
         rebtn            =x270 y55 ; str   | xn yn| Window coordinates of the refresh button           |
         rounded         :=  True   ; bool  | T/F  | Whether to round the app's corners                 |
-      ;=FADING OPTIONS===|=========|=======|======|====================================================|=============================================================================
+      ;=FADING OPTIONS===|=========|=======|======|====================================================|========================================================================================
         opacityShow     :=  9      ; float | 0-10 | Opacity when faded in                              | 0 = invisible | 10 = opaque
         opacityHide     :=  4      ; float | 0-10 | Opacity when faded out                             | 0 = invisible | 10 = opaque
         fSpeed          :=  5      ; int   | 1+   | How fast to fade in Milliseconds                   | 1 = instant
-        fStopKey         =  Ctrl   ; str   | Key  | The key that will prevent fading when held         |
+        fStopKey         =  Shift  ; str   | Key  | The key that will prevent fading when held         |
+        fBlurFix        :=  True   ; bool  | T/F  | Whether to force deselect everything when faded    | If 'False', if the window is clicked off of while a note is open, visual bugs can occur
         doCrop          :=  True   ; bool  | T/F  | Whether to crop the app when it's faded            |
-      ;=CROPPING OPTIONS (Used only when 'doCrop' is True)=============================================|=============================================================================
+      ;=CROPPING OPTIONS (Used only when 'doCrop' is True)=============================================|========================================================================================
         fCrop:={"left"   :  90     ; int   | 0+   | Amount to crop the left by when faded out          |
                ,"top"    :  175    ; int   | 0+   | Amount to crop the top by when faded out           |
                ,"right"  :  0      ; int   | 0+   | Amount to crop the right by when faded out         |
                ,"bottom" :  0      ; int   | 0+   | Amount to crop the bottom by when faded out        |
                ,"cHorz"  :  2      ; int   | 0-2  | How to change the app's width when cropped         | 0 = maintain | 1 = center | 2 = shrink
                ,"cVert"  :  0   }  ; int   | 0-2  | How to change the app's height when cropped        | 0 = maintain | 1 = center | 2 = shrink
-      ;=DEBUG============|=========|=======|======|====================================================|=============================================================================
+      ;=DEBUG============|=========|=======|======|====================================================|========================================================================================
         SetWinDelay      ,  -1     ; int   | -1+  | Delay between windowing commands, in milliseconds  | -1 = none | 0 = smallest possible
         SetKeyDelay      ,  50     ; int   | -1+  | Delay between inputs, in milliseconds              | -1 = none | 0 = smallest possible
         blockWhileLoad  :=  True   ; bool  | T/F  | Whether to block user input while starting up      | Only set to 'False' if absolutely necessary. Errors often occur if it's off
-      ;=DEVELOPER========|=========|=======|======|====================================================|=============================================================================
+      ;=DEVELOPER========|=========|=======|======|====================================================|========================================================================================
        ;---Don't change these unless you know what you're doing!---
         cmdLineArgs     :=  "--profile-directory=Default --app-id=eilembjdkfgodjkcjnpgpaenohkicgjd"
         devWinTitle     :=  "DevTools - keep.google.com"
         txtCmd          :=  "document.body.style.textShadow = ``0px 0px " textShadow "px ${window.getComputedStyle(document.body, null).getPropertyValue(""color"").replace(/\d+/g, n => 255-n)}``"
         bgCmd           :=  "window.getComputedStyle(document.body, null).getPropertyValue(""background-color"")"
+        blurCmd         :=  "window.addEventListener('blur', () => {let allEls = document.querySelectorAll('*'); setTimeout(() => allEls.forEach(el => el.blur()), 1000);})"
         winBG           :=  "202124"
 
 
@@ -76,8 +78,8 @@ OnExit("Cleanup")
     */
 
         ; Verify vars
-            for i, var in StrSplit("hwAccelOff,askToStart,updateInterval,textShadow,winBorder,topMargin,appX,appY,appW,appH,rounded,opacityShow,opacityHide,fSpeed,doCrop", ",") {
-                if (var ~= "hwAccelOff|askToStart|rounded|doCrop") {
+            for i, var in StrSplit("hwAccelOff,askToStart,updateInterval,textShadow,winBorder,topMargin,appX,appY,appW,appH,rounded,opacityShow,opacityHide,fSpeed,fBlurFix,doCrop,blockWhileLoad", ",") {
+                if (var ~= "hwAccelOff|askToStart|rounded|fBlurFix|doCrop|blockWhileLoad") {
                     if not (%var% ~= "^[01]$")
                         errMsg .= Format("`n{} | True or False | {}", var, %var%)
                 } else if (var ~= "textShadow|winBorder|topMargin|appX|appY|appW|appH") {
@@ -124,8 +126,7 @@ OnExit("Cleanup")
             SetControlDelay -1
             fadedIn := (254 // (10 // opacityShow) + 1)
             fadedOut := (254 // (10 // opacityHide) + 1)
-            if canCrop
-            {
+            if canCrop {
                 fCrop.x := fCrop.left
                 fCrop.y := fCrop.top
                 fCrop.w := -(fCrop.left + fCrop.right)
@@ -145,12 +146,12 @@ OnExit("Cleanup")
                         ,"y": appY - winBorder - topMargin
                         ,"w": appW + winBorder * 2
                         ,"h": appH + winBorder * 2 + topMargin}
-            oldClip := Clipboard
+            if textShadow or fBlurFix or (hwAccelOff and not winBG)
+                oldClip := Clipboard
             WinGet, prevActWin, ID, A
             OnMessage(0x5555, "listener")
         askStart: ;===============================================================================================
-            if askToStart and not WinExist("ahk_exe Chrome.exe")
-            {
+            if askToStart and not WinExist("ahk_exe Chrome.exe") {
                 MsgBox, 2, % "Warning", % "It looks like Chrome is not running.`nWould you like to open Google Keep anyway?`n(If you had any tabs saved or pinned from a previous session, they will be lost!)"
                 IfMsgBox, Abort, ExitApp
                 IfMsgBox, Retry, WinWait, % "ahk_exe Chrome.exe",, 10
@@ -164,8 +165,7 @@ OnExit("Cleanup")
         startGKeep: ;=============================================================================================
             Run, % """" proxyPath """ " cmdLineArgs
             WinWait, % "Google Keep ahk_exe Chrome.exe",, 10
-            if ErrorLevel
-            {
+            if ErrorLevel {
                 MsgBox, 4, % "Error", % "Couldn't hook Google Keep.`nTry again?"
                 IfMsgBox, Yes, Goto startGKeep
                 Return
@@ -180,8 +180,7 @@ OnExit("Cleanup")
             WinSet, Region, % viewRgn.x "-" viewRgn.y " w" viewRgn.w " h" viewRgn.h (rounded ? " R" : ""), % "Google Keep ahk_exe Chrome.exe"
         openDevConsole: ;=========================================================================================
             Sleep 1000
-            if textShadow or (hwAccelOff and not winBG)
-            {
+            if textShadow or fBlurFix or (hwAccelOff and not winBG) {
                 BlockIn(1)
                 WinActivate, ahk_id %gkeepHwnd%
                 Send, ^+j
@@ -203,12 +202,18 @@ OnExit("Cleanup")
             Sleep % A_KeyDelay
             WinActivate, ahk_id %devHwnd%
             Send, ^``^v{Enter}
-            }
+        }
+        Sleep 100
+        if fBlurFix { ;===========================================================================================
+            Clipboard := blurCmd
+            Sleep % A_KeyDelay
+            WinActivate, ahk_id %devHwnd%
+            Send, ^``^v{Enter}
+        }
         Sleep 100
         if hwAccelOff { ;=========================================================================================
             ; -----Get GKeep bg color-----
-                if not winBG
-                {
+                if not winBG {
                     Clipboard := bgCmd
                     Sleep % A_KeyDelay
                     while not col
@@ -258,7 +263,8 @@ OnExit("Cleanup")
             else
                 Send, !{Tab}
             BlockIn(0)
-            Clipboard := oldClip
+            if textShadow or fBlurFix or (hwAccelOff and not winBG)
+                Clipboard := oldClip
             fadeWin := (hwAccelOff ? guiHwnd : gkeepHwnd)
 
 
