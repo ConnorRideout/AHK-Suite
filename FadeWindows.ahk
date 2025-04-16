@@ -37,12 +37,8 @@ fadingActive := true
 ; Find and store desktop window
 desktop := WinExist("ahk_class " desktopClass)
 if !desktop {
-    ; Try the alternate desktop class
-    desktop := WinExist("ahk_class Progman")
-    if !desktop {
-        MsgBox("Could not find desktop window. Check desktopClass variable.")
-        ExitApp()
-    }
+    MsgBox("Could not find desktop window. Check desktopClass variable.")
+    ExitApp()
 }
 
 ; Add desktop to window array with special state
@@ -128,11 +124,12 @@ CheckWindows() {
                     ; Desktop is visible if mouse is over it or no window is active
                     try {
                         activeClass := WinGetClass("A")
-                        if (isMouseOverDesktop || activeClass = "" || activeClass = "WorkerW" || activeClass =
-                            "Progman")
+                        if (isMouseOverDesktop || activeClass = "" || activeClass = "WorkerW") {
                             shouldBeVisible := true
+                        }
                     } catch {
-                        ; Default to not visible if error
+                        ; Default to visible if error, which it will error if the user clicks on an icon on the desktop while the desktop hasn't been active
+                        shouldBeVisible := true
                     }
                 }
                 ; For regular windows
