@@ -6,10 +6,10 @@
 SetTitleMatchMode, 2
 OnExit("Cleanup")
 
-/*    __    __     __     _      
-  | |   \ |   /\ |  ) |  | | \ \ / /\ |  \/ |
-  | || |) | |  | |/  \| _ \ || |   \ V /  \|   /\ \
-  |_|/| |// \\_/__|__|   \// \\_|\|___/
+/* ___ ___ ___ _____ _   ___ _    ___  __   ___   ___  ___
+  | __|   \_ _|_   _/_\ | _ ) |  | __| \ \ / /_\ | _ \/ __|
+  | _|| |) | |  | |/ _ \| _ \ |__| _|   \ V / _ \|   /\__ \
+  |___|___/___| |_/_/ \_\___/____|___|   \_/_/ \_\_|_\|___/
 */
     fadeWait := 25 ; default=25 milliseconds. How long the mouse must be stationary before the desktop fades in
     fadeSpeed := 15 ; default=15 milliseconds. Approximate. Fading occurs over about this many milliseconds
@@ -23,10 +23,10 @@ OnExit("Cleanup")
     (i.e. fading in/out might take up to 2 miliseconds longer, or the opacity would be 50.2% rather than right at 50%)
     */
 
-/*                  
-  |  \  \/ _ \ / |  \  /\ |  \/  |
-  |  /   / () | ( \   / /  \| |\/| |
-  || ||\\__/ \__/|\// \\_|  ||
+/* ___ ___  ___   ___ ___    _   __  __
+  | _ \ _ \/ _ \ / __| _ \  /_\ |  \/  |
+  |  _/   / (_) | (_ \   / / _ \| |\/| |
+  |_| |_|_\\___/ \___/_|_\/_/ \_\_|  |_|
 */
     ; -----Initialize vars-----
         if not (desktop := WinExist("ahk_class " desktopClass))
@@ -88,28 +88,28 @@ OnExit("Cleanup")
         fadeState := "hiding"
     Return
 
-    /* __    __    __
-      / / / / / |/ / /  __/  /  \/ |/ / /
-     / // // /    / /  / / / // // /    /\ \  
-    //  \_//|/\/ // /_/\_//|//
-    */
-        listener(stop) {
-            global
-            if stop
-            {
-                SetTimer, CheckMousePos, Off
-                fadeState := "stop"
-                Sleep % fadeSpeed
-                WinSet, Transparent, Off, ahk_id %desktop%
-                fadeState := "showing"
-            }
-            else
-                SetTimer, CheckMousePos, On
-            Return
+/* ______  ___  _____________________  _  ______
+  / __/ / / / |/ / ___/_  __/  _/ __ \/ |/ / __/
+ / _// /_/ /    / /__  / / _/ // /_/ /    /\ \
+/_/  \____/_/|_/\___/ /_/ /___/\____/_/|_/___/
+*/
+    listener(stop) {
+        global
+        if stop
+        {
+            SetTimer, CheckMousePos, Off
+            fadeState := "stop"
+            Sleep % fadeSpeed
+            WinSet, Transparent, Off, ahk_id %desktop%
+            fadeState := "showing"
         }
+        else
+            SetTimer, CheckMousePos, On
+        Return
+    }
 
-        Cleanup(ExitReason, ExitCode) {
-            Critical
-            listener(1)
-            ExitApp
-        }
+    Cleanup(ExitReason, ExitCode) {
+        Critical
+        listener(1)
+        ExitApp
+    }
