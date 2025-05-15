@@ -57,7 +57,7 @@ IsWindowInArray(windowHandle) {
 }
 
 ; Function to show tooltip at the top-left corner of the window
-ShowWindowTooltip(message, windowHandle) {
+ShowWindowTooltip(message, windowHandle, adding := true) {
     try {
         ToolTip(message, 10, 10)
         SetTimer(() => ToolTip(), -2000)
@@ -65,14 +65,19 @@ ShowWindowTooltip(message, windowHandle) {
         ToolTip(message)
         SetTimer(() => ToolTip(), -2000)
     }
-    SoundPlay "*32"
+    if (adding) {
+        SoundPlay "*32"
+    } else {
+        SoundPlay "*64"
+    }
 }
 
 ; Main function to check all windows and update their state
 CheckWindows() {
     global windowArray, fadingActive
 
-    if (!fadingActive || A_TimeIdleMouse > 100 || A_TimeIdleMouse < fadeWait)
+    ; don't fade if inactive, if the mouse hasn't moved for over 1 second, or if the mouse is still moving (per fadeWait)
+    if (!fadingActive || A_TimeIdle > 1000 || A_TimeIdle < fadeWait)
         return
 
     ; Get current mouse position and window under mouse
@@ -128,7 +133,7 @@ CheckWindows() {
                             shouldBeVisible := true
                         }
                     } catch {
-                        ; Default to visible if error, which it will error if the user clicks on an icon on the desktop while the desktop hasn't been active
+                        ; Default to visible if error, which it WILL error if the user clicks on an icon on the desktop while the desktop hasn't been active
                         shouldBeVisible := true
                     }
                 }
@@ -136,7 +141,6 @@ CheckWindows() {
                 else if (windowObj.handle = mouseWin) {
                     ; Need to check if mouse position is stable for faded windows
                     if (windowObj.state = "faded") {
-                        ; Sleep(fadeWait)
                         MouseGetPos(&mx2, &my2, &mouseWin2)
                         if (mx = mx2 && my = my2 && mouseWin = mouseWin2)
                             shouldBeVisible := true
@@ -259,7 +263,7 @@ ToggleCurrentWindow() {
             ; Reset transparency to 100% when removing from tracking
             WinSetTransparent('', "ahk_id " currentWindow)
 
-            ShowWindowTooltip("Window removed from transparency management", currentWindow)
+            ShowWindowTooltip("Window removed from transparency management", currentWindow, false)
         } else {
             ; Add window to array with initial state "showing" (since it's active)
             windowArray.Push({ handle: currentWindow, state: "showing", isDesktop: false })
