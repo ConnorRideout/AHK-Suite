@@ -56,6 +56,13 @@ IsWindowInArray(windowHandle) {
     return 0
 }
 
+GetDesktopWindowObj() {
+    for index, windowObj in windowArray {
+        if (windowObj.isDesktop)
+            return windowObj
+    }
+}
+
 ; Function to show tooltip at the top-left corner of the window
 ShowWindowTooltip(message, windowHandle, adding := true) {
     try {
@@ -211,31 +218,6 @@ FadeWindowOut(windowObj) {
  / _// /_/ /    / /__  / / _/ // /_/ /    /\ \
 /_/  \____/_/|_/\___/ /_/ /___/\____/_/|_/___/
 */
-listener(wParam, lParam, msg, hwnd) {
-    global fadingActive, fadeSpeed, mouseCheck
-
-    if wParam {
-        ; Pause transparency management
-        SetTimer(CheckWindows, 0)
-        fadingActive := false
-        Sleep(fadeSpeed)
-
-        ; Restore all windows to full opacity
-        for index, windowObj in windowArray {
-            try {
-                WinSetTransparent('', "ahk_id " windowObj.handle)
-                windowObj.state := "showing"
-            } catch {
-                ; Ignore errors during restoration
-            }
-        }
-    } else {
-        ; Resume transparency management
-        fadingActive := true
-        SetTimer(CheckWindows, mouseCheck)
-    }
-    return true
-}
 
 ; F16 hotkey to toggle the current window in/out of the array
 F16:: ToggleCurrentWindow()
@@ -247,9 +229,18 @@ ToggleCurrentWindow() {
         currentWindow := WinGetID("A")
 
         ; Check if window is the desktop - don't allow toggle
+        ; windowArray.Push({ handle: desktop, state: "showing", isDesktop: true })
         currentClass := WinGetClass("ahk_id " currentWindow)
-        if (currentClass = desktopClass) || (currentClass = "Progman") {
-            ShowWindowTooltip("Desktop transparency is managed automatically", currentWindow)
+        if (currentClass = desktopClass) {
+            ; check if desktopClass is broken
+            desktopObj := GetDesktopWindowObj()
+            if (!WinExist("ahk_id " desktopObj.handle)) {
+                desktopHandle := WinExist("ahk_class " desktopClass)
+                desktopObj.handle := desktopHandle
+                ShowWindowTooltip("Desktop handle was corrupted, re-adding...", currentWindow)
+            } else {
+                ShowWindowTooltip("Desktop transparency is managed automatically", currentWindow)
+            }
             return
         }
 
@@ -274,6 +265,32 @@ ToggleCurrentWindow() {
         ToolTip("Error: " err.Message)
         SetTimer(() => ToolTip(), -3000)
     }
+}
+
+listener(wParam, lParam, msg, hwnd) {
+    global fadingActive, fadeSpeed, mouseCheck
+
+    if wParam {
+        ; Pause transparency management
+        SetTimer(CheckWindows, 0)
+        fadingActive := false
+        Sleep(fadeSpeed)
+
+        ; Restore all windows to full opacity
+        for index, windowObj in windowArray {
+            try {
+                WinSetTransparent('', "ahk_id " windowObj.handle)
+                windowObj.state := "showing"
+            } catch {
+                ; Ignore errors during restoration
+            }
+        }
+    } else {
+        ; Resume transparency management
+        fadingActive := true
+        SetTimer(CheckWindows, mouseCheck)
+    }
+    return true
 }
 
 Cleanup(*) {
