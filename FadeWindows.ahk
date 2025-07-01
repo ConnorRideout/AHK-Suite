@@ -18,6 +18,7 @@ fadeSpeed := 15   ; default=15 milliseconds. Approximate. Fading occurs over abo
 fadePercent := 15 ; default=15 percent. Approximate. Percent opacity after fading, where 0 means invisible, 100 means no fading at all
 mouseCheck := 10  ; default=10 milliseconds. How often to check mouse position
 desktopClass := "WorkerW" ; name of the desktop window class, usually 'WorkerW' or 'Progman'
+deepCheckProcesses := ["steamwebhelper",] ; name of the processes you want to do deep parent checking of (i.e. if a process opens a window, should the main window still be faded)
 
 /* ___ ___  ___   ___ ___    _   __  __
   | _ \ _ \/ _ \ / __| _ \  /_\ |  \/  |
@@ -42,7 +43,7 @@ if !desktop {
 }
 
 ; Add desktop to window array with special state
-windowArray.Push({ handle: desktop, state: "showing", isDesktop: true })
+windowArray.Push({ handle: desktop, state: "showing", isDesktop: true, deepCheck: false })
 
 OnMessage(0x5555, listener)
 SetTimer(CheckWindows, mouseCheck)
@@ -79,6 +80,47 @@ ShowWindowTooltip(message, windowHandle, adding := true) {
     }
 }
 
+; Helper function to check if activeWin is related to targetWin
+IsWindowRelated(activeWin, targetWinObj) {
+    ; Direct match
+    if (activeWin == targetWinObj.handle)
+        return true
+
+    ; Check if a deep check should be done
+    if (!targetWinObj.deepCheck)
+        return false
+
+    ; Process ID match
+    try {
+        activePID := WinGetPID("ahk_id " activeWin)
+        targetPID := WinGetPID("ahk_id " targetWinObj.handle)
+        if (activePID == targetPID)
+            return true
+    }
+
+    ; Check parent chain
+    current := activeWin
+    loop 20 { ; Safety limit to prevent infinite loops
+        current := DllCall("GetParent", "Ptr", current, "Ptr")
+        if (!current)
+            break
+        if (current == targetWinObj.handle)
+            return true
+    }
+
+    ; Check owner chain
+    current := activeWin
+    loop 20 { ; Safety limit
+        current := DllCall("GetWindow", "Ptr", current, "UInt", 4, "Ptr")
+        if (!current)
+            break
+        if (current == targetWinObj.handle)
+            return true
+    }
+
+    return false
+}
+
 ; Main function to check all windows and update their state
 CheckWindows() {
     global windowArray, fadingActive
@@ -101,7 +143,7 @@ CheckWindows() {
     isMouseOverDesktop := false
     try {
         mouseWinClass := WinGetClass("ahk_id " mouseWin)
-        if (mouseWinClass = "WorkerW" || mouseWinClass = "Progman")
+        if (mouseWinClass = desktopClass)
             isMouseOverDesktop := true
     } catch {
         ; Ignore errors
@@ -125,12 +167,11 @@ CheckWindows() {
             ; Determine if this window should be visible
             shouldBeVisible := false
 
-            ; Case 1: Window is active
-            if (windowObj.handle = activeWin)
+            ; Case 1: Window is active, or is directly related to the active window
+            if (IsWindowRelated(activeWin, windowObj))
                 shouldBeVisible := true
-
-            ; Case 2: Mouse is over this window
             else {
+                ; Case 2: Mouse is over this window
                 ; For desktop
                 if (windowObj.isDesktop) {
                     ; Desktop is visible if mouse is over it or no window is active
@@ -165,7 +206,7 @@ CheckWindows() {
 
             i++
         } catch as err {
-            ; MsgBox("Error in CheckWindows: " err.Message)
+            MsgBox("Error in CheckWindows: " err.Message)
             i++
         }
     }
@@ -256,8 +297,24 @@ ToggleCurrentWindow() {
 
             ShowWindowTooltip("Window removed from transparency management", currentWindow, false)
         } else {
+            ; Check if window should be deep checked
+            shouldDoDeepCheck := false
+            try {
+                targetPID := WinGetPID("A")
+                processName := ProcessGetName(targetPID)
+                processBaseName := StrLower(RegExReplace(processName, "\.exe$"))
+
+                for _, checkProcess in deepCheckProcesses {
+                    if (processBaseName = StrLower(checkProcess)) {
+                        shouldDoDeepCheck := true
+                        break
+                    }
+                }
+            } catch {
+                shouldDoDeepCheck := false
+            }
             ; Add window to array with initial state "showing" (since it's active)
-            windowArray.Push({ handle: currentWindow, state: "showing", isDesktop: false })
+            windowArray.Push({ handle: currentWindow, state: "showing", isDesktop: false, deepCheck: shouldDoDeepCheck })
 
             ShowWindowTooltip("Window added to transparency management", currentWindow)
         }
