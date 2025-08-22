@@ -26,11 +26,13 @@ Return
 	if toggleAudio
 	{
 		Run, % "nircmd setdefaultsounddevice """ d2 """"
+		Run, % "nircmd setdefaultsounddevice """ d2 """ 2"
 		soundToasty(d2)
 	}
 	else
 	{
 		Run, % "nircmd setdefaultsounddevice """ d1 """"
+		Run, % "nircmd setdefaultsounddevice """ d1 """ 2"
 		soundToasty(d1)
 	}
 Return
