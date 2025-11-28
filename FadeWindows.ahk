@@ -1,6 +1,6 @@
 ﻿#Requires AutoHotkey v2.0
 #SingleInstance Force
-; #NoTrayIcon
+#NoTrayIcon
 Persistent()
 InstallMouseHook()
 SetTitleMatchMode(2)
@@ -17,7 +17,7 @@ fadeWait := 25    ; default=25 milliseconds. How long the mouse must be stationa
 fadeSpeed := 15   ; default=15 milliseconds. Approximate. Fading occurs over about this many milliseconds
 fadePercent := 15 ; default=15 percent. Approximate. Percent opacity after fading, where 0 means invisible, 100 means no fading at all
 mouseCheck := 10  ; default=10 milliseconds. How often to check mouse position
-desktopClass := "WorkerW" ; name of the desktop window class, usually 'WorkerW' or 'Progman'
+desktopClass := "Progman" ; name of the desktop window class, usually 'WorkerW' or 'Progman'
 deepCheckProcesses := ["steamwebhelper",] ; name of the processes you want to do deep parent checking of (i.e. if a process opens a window, should the main window still be faded)
 
 /* ___ ___  ___   ___ ___    _   __  __
@@ -42,13 +42,35 @@ if !desktop {
     ExitApp()
 }
 
+; Get the wallpaper image paths
+wallpaperPath := A_AppData "\Microsoft\Windows\Themes\"
+leftWallpaper := wallpaperPath "Transcoded_000"
+rightWallpaper := wallpaperPath "Transcoded_001"
+
+; Create GUI for overlaying the wallpaper
+desktopOverlayGui := Gui("-Caption +ToolWindow +E0x20")
+desktopOverlayGui.MarginX := 0
+desktopOverlayGui.MarginY := 0
+desktopOverlayGui.BackColor := "000000"
+leftImgOverlay := desktopOverlayGui.Add("Picture", "x0 y0", leftWallpaper)
+rightImgOverlay := desktopOverlayGui.Add("Picture", "x2560 y0", rightWallpaper)
+
+desktopOverlayGui.Show("x0 y0 w5120 h1440 NoActivate")
+WinMoveBottom(desktopOverlayGui)
+
+WinSetTransparent(255, 'ahk_id ' desktopOverlayGui.Hwnd)
+
+desktopOverlayWindowObj := { handle: desktopOverlayGui.Hwnd, state: "faded", isDesktop: false, isOverlay: true,
+    deepCheck: false }
+windowArray.Push(desktopOverlayWindowObj)
+
 ; Add desktop to window array with special state
-windowArray.Push({ handle: desktop, state: "showing", isDesktop: true, deepCheck: false })
+windowArray.Push({ handle: desktop, state: "showing", isDesktop: true, isOverlay: false, deepCheck: false })
 
 OnMessage(0x5555, listener)
 SetTimer(CheckWindows, mouseCheck)
 
-; Function to check if a window is already in our array
+; Function to check if a window is already in the array
 IsWindowInArray(windowHandle) {
     for index, windowObj in windowArray {
         if (windowObj.handle = windowHandle)
@@ -65,7 +87,7 @@ GetDesktopWindowObj() {
 }
 
 ; Function to show tooltip at the top-left corner of the window
-ShowWindowTooltip(message, windowHandle, adding := true) {
+ShowWindowTooltip(message, adding := true) {
     try {
         ToolTip(message, 10, 10)
         SetTimer(() => ToolTip(), -2000)
@@ -155,6 +177,11 @@ CheckWindows() {
         try {
             windowObj := windowArray[i]
 
+            if (windowObj.isOverlay) {
+                i++
+                continue
+            }
+
             ; Skip if window doesn't exist anymore (except desktop)
             if (!WinExist("ahk_id " windowObj.handle)) {
                 if (!windowObj.isDesktop)
@@ -177,7 +204,7 @@ CheckWindows() {
                     ; Desktop is visible if mouse is over it or no window is active
                     try {
                         activeClass := WinGetClass("A")
-                        if (isMouseOverDesktop || activeClass = "" || activeClass = "WorkerW") {
+                        if (isMouseOverDesktop || activeClass = "" || activeClass = desktopClass) {
                             shouldBeVisible := true
                         }
                     } catch {
@@ -196,6 +223,12 @@ CheckWindows() {
                         shouldBeVisible := true
                     }
                 }
+            }
+
+            ; Handle desktop specially since the overlay is what needs to change (in the inverse)
+            if (windowObj.isDesktop) {
+                shouldBeVisible := !shouldBeVisible
+                windowObj := desktopOverlayWindowObj
             }
 
             ; Update window transparency based on shouldBeVisible
@@ -219,14 +252,25 @@ FadeWindowIn(windowObj) {
     if (!fadingActive)
         return
 
+    ; Overlay behaves differently
+    if (!windowObj.isOverlay) {
+        startOpacity := fadeTo
+        endOpacity := 255
+        finalOpacity := "Off"
+    } else {
+        startOpacity := 0
+        endOpacity := 255 - fadeTo
+        finalOpacity := 255 - fadeTo
+    }
+
     try {
-        transVal := fadeTo
-        while (transVal < 255 && fadingActive) {
+        transVal := startOpacity
+        while (transVal < endOpacity && fadingActive) {
             WinSetTransparent(transVal, "ahk_id " windowObj.handle)
             transVal += fadeStep
             Sleep(1)
         }
-        WinSetTransparent('', "ahk_id " windowObj.handle)
+        WinSetTransparent(finalOpacity, "ahk_id " windowObj.handle)
         windowObj.state := "showing"
     } catch {
         ; Ignore errors during fading
@@ -240,14 +284,25 @@ FadeWindowOut(windowObj) {
     if (!fadingActive)
         return
 
+    ; Overlay behaves differently
+    if (!windowObj.isOverlay) {
+        startOpacity := 255
+        endOpacity := fadeTo
+        finalOpacity := fadeMax
+    } else {
+        startOpacity := 255 - fadeTo
+        endOpacity := 0
+        finalOpacity := 0
+    }
+
     try {
-        transVal := 255
-        while (transVal > fadeTo && fadingActive) {
+        transVal := startOpacity
+        while (transVal > endOpacity && fadingActive) {
             WinSetTransparent(transVal, "ahk_id " windowObj.handle)
             transVal -= fadeStep
             Sleep(1)
         }
-        WinSetTransparent(fadeMax, "ahk_id " windowObj.handle)
+        WinSetTransparent(finalOpacity, "ahk_id " windowObj.handle)
         windowObj.state := "faded"
     } catch {
         ; Ignore errors during fading
@@ -261,7 +316,8 @@ FadeWindowOut(windowObj) {
 */
 
 ; F16 hotkey to toggle the current window in/out of the array
-F16:: ToggleCurrentWindow()
+; F16:: ToggleCurrentWindow()
+#+F:: ToggleCurrentWindow()
 
 ToggleCurrentWindow() {
     global desktopClass
@@ -270,20 +326,24 @@ ToggleCurrentWindow() {
         currentWindow := WinGetID("A")
 
         ; Check if window is the desktop - don't allow toggle
-        ; windowArray.Push({ handle: desktop, state: "showing", isDesktop: true })
         currentClass := WinGetClass("ahk_id " currentWindow)
+
         if (currentClass = desktopClass) {
             ; check if desktopClass is broken
             desktopObj := GetDesktopWindowObj()
             if (!WinExist("ahk_id " desktopObj.handle)) {
                 desktopHandle := WinExist("ahk_class " desktopClass)
                 desktopObj.handle := desktopHandle
-                ShowWindowTooltip("Desktop handle was corrupted, re-adding...", currentWindow)
+                ShowWindowTooltip("Desktop handle was corrupted, re-adding...")
             } else {
-                ShowWindowTooltip("Desktop transparency is managed automatically", currentWindow)
+                ShowWindowTooltip("Desktop transparency is managed automatically")
             }
             return
         }
+
+        ; Check if window is the overlay - don't allow toggle
+        if (currentWindow = desktopOverlayGui.Hwnd)
+            ShowWindowTooltip("How did you even access this window?")
 
         ; Check if window is already in array
         existingIndex := IsWindowInArray(currentWindow)
@@ -295,7 +355,7 @@ ToggleCurrentWindow() {
             ; Reset transparency to 100% when removing from tracking
             WinSetTransparent('', "ahk_id " currentWindow)
 
-            ShowWindowTooltip("Window removed from transparency management", currentWindow, false)
+            ShowWindowTooltip("Window removed from transparency management", false)
         } else {
             ; Check if window should be deep checked
             shouldDoDeepCheck := false
@@ -314,13 +374,55 @@ ToggleCurrentWindow() {
                 shouldDoDeepCheck := false
             }
             ; Add window to array with initial state "showing" (since it's active)
-            windowArray.Push({ handle: currentWindow, state: "showing", isDesktop: false, deepCheck: shouldDoDeepCheck })
+            windowArray.Push({ handle: currentWindow, state: "showing", isDesktop: false, isOverlay: false, deepCheck: shouldDoDeepCheck })
 
-            ShowWindowTooltip("Window added to transparency management", currentWindow)
+            ShowWindowTooltip("Window added to transparency management")
         }
     } catch as err {
         ToolTip("Error: " err.Message)
         SetTimer(() => ToolTip(), -3000)
+    }
+}
+
+; Wallpaper file change monitoring with smart intervals
+lastLeftTime := FileGetTime(leftWallpaper, "M")
+lastRightTime := FileGetTime(rightWallpaper, "M")
+lastChangeTime := A_TickCount
+checkInterval := 1800000  ; 30 minutes in milliseconds
+fastCheckingEnabled := false
+
+SetTimer(CheckForChanges, 30000)  ; Start with 30 second checks
+
+CheckForChanges() {
+    global lastLeftTime, lastRightTime, lastChangeTime, checkInterval, fastCheckingEnabled
+    global leftWallpaper, rightWallpaper, leftImgOverlay, rightImgOverlay
+
+    timeSinceLastChange := A_TickCount - lastChangeTime
+
+    ; Switch to frequent mode after 30 minutes
+    if (timeSinceLastChange >= checkInterval && !fastCheckingEnabled) {
+        SetTimer(CheckForChanges, 2000)  ; Check every 2 seconds
+        fastCheckingEnabled := true
+    }
+
+    ; Get current modification times
+    leftTime := FileGetTime(leftWallpaper, "M")
+    rightTime := FileGetTime(rightWallpaper, "M")
+
+    ; Check if either file has been modified
+    if (leftTime != lastLeftTime || rightTime != lastRightTime) {
+        Sleep(100)  ; Brief delay to ensure file is fully written
+        leftImgOverlay.Value := leftWallpaper
+        rightImgOverlay.Value := rightWallpaper
+
+        ; Update tracking variables
+        lastLeftTime := leftTime
+        lastRightTime := rightTime
+        lastChangeTime := A_TickCount  ; Reset the 30-minute timer
+
+        ; Switch back to slow checking
+        SetTimer(CheckForChanges, 30000)
+        fastCheckingEnabled := false
     }
 }
 
@@ -368,3 +470,8 @@ Cleanup(*) {
 
     ExitApp()
 }
+
+; SetTimer(Debug, 1000)
+; Debug() {
+;     ToolTip(desktopOverlayWindowObj.state GetDesktopWindowObj().state)
+; }
