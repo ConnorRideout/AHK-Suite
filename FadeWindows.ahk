@@ -19,6 +19,8 @@ fadePercent := 15 ; default=15 percent. Approximate. Percent opacity after fadin
 mouseCheck := 10  ; default=10 milliseconds. How often to check mouse position
 desktopClass := "Progman" ; name of the desktop window class, usually 'WorkerW' or 'Progman'
 deepCheckProcesses := ["steamwebhelper",] ; name of the processes you want to do deep parent checking of (i.e. if a process opens a window, should the main window still be faded)
+wallpaperSlideshowInterval := 30  ; number of minutes between wallpaper changes, set in windows settings. Set to 0 if the wallpaper is static (no slideshow)
+; TODO: expose the desktop resolution, number/location of monitors
 
 /* ___ ___  ___   ___ ___    _   __  __
   | _ \ _ \/ _ \ / __| _ \  /_\ |  \/  |
@@ -58,7 +60,7 @@ rightImgOverlay := desktopOverlayGui.Add("Picture", "x2560 y0", rightWallpaper)
 desktopOverlayGui.Show("x0 y0 w5120 h1440 NoActivate")
 WinMoveBottom(desktopOverlayGui)
 
-WinSetTransparent(255, 'ahk_id ' desktopOverlayGui.Hwnd)
+WinSetTransparent(0, 'ahk_id ' desktopOverlayGui.Hwnd)
 
 desktopOverlayWindowObj := { handle: desktopOverlayGui.Hwnd, state: "faded", isDesktop: false, isOverlay: true,
     deepCheck: false }
@@ -316,7 +318,7 @@ FadeWindowOut(windowObj) {
 */
 
 ; F16 hotkey to toggle the current window in/out of the array
-; F16:: ToggleCurrentWindow()
+F16:: ToggleCurrentWindow()
 #+F:: ToggleCurrentWindow()
 
 ToggleCurrentWindow() {
@@ -385,44 +387,52 @@ ToggleCurrentWindow() {
 }
 
 ; Wallpaper file change monitoring with smart intervals
-lastLeftTime := FileGetTime(leftWallpaper, "M")
-lastRightTime := FileGetTime(rightWallpaper, "M")
-lastChangeTime := A_TickCount
-checkInterval := 1800000  ; 30 minutes in milliseconds
-fastCheckingEnabled := false
+if (wallpaperSlideshowInterval != 0) {
+    lastLeftTime := FileGetTime(leftWallpaper, "M")
+    lastRightTime := FileGetTime(rightWallpaper, "M")
+    lastChangeTime := A_TickCount
+    checkInterval := wallpaperSlideshowInterval * 60 * 1000 - 5000  ; 5 seconds shy of slideshow interval
+    fastCheckingEnabled := false
 
-SetTimer(CheckForChanges, 30000)  ; Start with 30 second checks
+    SetTimer(CheckForChanges, 15000)  ; Start with 30 second checks
 
-CheckForChanges() {
-    global lastLeftTime, lastRightTime, lastChangeTime, checkInterval, fastCheckingEnabled
-    global leftWallpaper, rightWallpaper, leftImgOverlay, rightImgOverlay
+    CheckForChanges() {
+        global lastLeftTime, lastRightTime, lastChangeTime, checkInterval, fastCheckingEnabled
+        global leftWallpaper, rightWallpaper, leftImgOverlay, rightImgOverlay
 
-    timeSinceLastChange := A_TickCount - lastChangeTime
+        timeSinceLastChange := A_TickCount - lastChangeTime
 
-    ; Switch to frequent mode after 30 minutes
-    if (timeSinceLastChange >= checkInterval && !fastCheckingEnabled) {
-        SetTimer(CheckForChanges, 2000)  ; Check every 2 seconds
-        fastCheckingEnabled := true
-    }
+        ; Switch to frequent mode after 30 minutes
+        if (timeSinceLastChange >= checkInterval && !fastCheckingEnabled) {
+            SetTimer(CheckForChanges, 2000)  ; Check every 2 seconds
+            fastCheckingEnabled := true
+        }
 
-    ; Get current modification times
-    leftTime := FileGetTime(leftWallpaper, "M")
-    rightTime := FileGetTime(rightWallpaper, "M")
+        ; Get current modification times
+        leftTime := FileGetTime(leftWallpaper, "M")
+        rightTime := FileGetTime(rightWallpaper, "M")
 
-    ; Check if either file has been modified
-    if (leftTime != lastLeftTime || rightTime != lastRightTime) {
-        Sleep(100)  ; Brief delay to ensure file is fully written
-        leftImgOverlay.Value := leftWallpaper
-        rightImgOverlay.Value := rightWallpaper
+        ; Check if either file has been modified
+        if (leftTime != lastLeftTime || rightTime != lastRightTime) {
+            if (desktopOverlayWindowObj.state == "showing") {
+                FadeWindowOut(desktopOverlayWindowObj)  ; help fade between images
+            }
+            Sleep(2000)  ; delay to ensure file is fully written & transition is complete
+            leftImgOverlay.Value := leftWallpaper
+            rightImgOverlay.Value := rightWallpaper
+            if (desktopOverlayWindowObj.state == "faded") {
+                FadeWindowIn(desktopOverlayWindowObj)  ; help fade between images
+            }
 
-        ; Update tracking variables
-        lastLeftTime := leftTime
-        lastRightTime := rightTime
-        lastChangeTime := A_TickCount  ; Reset the 30-minute timer
+            ; Update tracking variables
+            lastLeftTime := leftTime
+            lastRightTime := rightTime
+            lastChangeTime := A_TickCount  ; Reset the 30-minute timer
 
-        ; Switch back to slow checking
-        SetTimer(CheckForChanges, 30000)
-        fastCheckingEnabled := false
+            ; Switch back to slow checking
+            SetTimer(CheckForChanges, 30000)
+            fastCheckingEnabled := false
+        }
     }
 }
 
@@ -470,8 +480,3 @@ Cleanup(*) {
 
     ExitApp()
 }
-
-; SetTimer(Debug, 1000)
-; Debug() {
-;     ToolTip(desktopOverlayWindowObj.state GetDesktopWindowObj().state)
-; }
