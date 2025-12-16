@@ -280,7 +280,7 @@ FadeWindowIn(windowObj) {
 }
 
 ; Fade a window out (decrease opacity to fadeTo value)
-FadeWindowOut(windowObj) {
+FadeWindowOut(windowObj, slow := false) {
     global fadeTo, fadeStep, fadeMax, fadingActive
 
     if (!fadingActive)
@@ -297,11 +297,17 @@ FadeWindowOut(windowObj) {
         finalOpacity := 0
     }
 
+    if (slow) {
+        fStep := Round(fadeStep / 3)
+    } else {
+        fStep := fadeStep
+    }
+
     try {
         transVal := startOpacity
         while (transVal > endOpacity && fadingActive) {
             WinSetTransparent(transVal, "ahk_id " windowObj.handle)
-            transVal -= fadeStep
+            transVal -= fStep
             Sleep(1)
         }
         WinSetTransparent(finalOpacity, "ahk_id " windowObj.handle)
@@ -391,20 +397,20 @@ if (wallpaperSlideshowInterval != 0) {
     lastLeftTime := FileGetTime(leftWallpaper, "M")
     lastRightTime := FileGetTime(rightWallpaper, "M")
     lastChangeTime := A_TickCount
-    checkInterval := wallpaperSlideshowInterval * 60 * 1000 - 5000  ; 5 seconds shy of slideshow interval
+    checkInterval := wallpaperSlideshowInterval * 60 * 1000 - 30000  ; 30 seconds shy of slideshow interval, since it tends to be somewhat shaky
     fastCheckingEnabled := false
 
-    SetTimer(CheckForChanges, 15000)  ; Start with 30 second checks
+    SetTimer(CheckForChanges, 15000)  ; Start with 15 second checks
 
     CheckForChanges() {
         global lastLeftTime, lastRightTime, lastChangeTime, checkInterval, fastCheckingEnabled
-        global leftWallpaper, rightWallpaper, leftImgOverlay, rightImgOverlay
+        global desktopOverlayWindowObj, leftWallpaper, rightWallpaper, leftImgOverlay, rightImgOverlay
 
         timeSinceLastChange := A_TickCount - lastChangeTime
 
         ; Switch to frequent mode after 30 minutes
         if (timeSinceLastChange >= checkInterval && !fastCheckingEnabled) {
-            SetTimer(CheckForChanges, 2000)  ; Check every 2 seconds
+            SetTimer(CheckForChanges, 1000)  ; Check every second
             fastCheckingEnabled := true
         }
 
@@ -415,9 +421,9 @@ if (wallpaperSlideshowInterval != 0) {
         ; Check if either file has been modified
         if (leftTime != lastLeftTime || rightTime != lastRightTime) {
             if (desktopOverlayWindowObj.state == "showing") {
-                FadeWindowOut(desktopOverlayWindowObj)  ; help fade between images
+                FadeWindowOut(desktopOverlayWindowObj, true)  ; help fade between images
             }
-            Sleep(2000)  ; delay to ensure file is fully written & transition is complete
+            Sleep(1000)  ; delay to ensure file is fully written
             leftImgOverlay.Value := leftWallpaper
             rightImgOverlay.Value := rightWallpaper
             if (desktopOverlayWindowObj.state == "faded") {
@@ -430,7 +436,7 @@ if (wallpaperSlideshowInterval != 0) {
             lastChangeTime := A_TickCount  ; Reset the 30-minute timer
 
             ; Switch back to slow checking
-            SetTimer(CheckForChanges, 30000)
+            SetTimer(CheckForChanges, 15000)
             fastCheckingEnabled := false
         }
     }
