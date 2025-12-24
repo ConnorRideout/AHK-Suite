@@ -423,17 +423,19 @@ if (wallpaperSlideshowInterval != 0) {
             if (desktopOverlayWindowObj.state == "showing") {
                 FadeWindowOut(desktopOverlayWindowObj, true)  ; help fade between images
             }
+
             Sleep(1000)  ; delay to ensure file is fully written
             leftImgOverlay.Value := leftWallpaper
             rightImgOverlay.Value := rightWallpaper
-            if (desktopOverlayWindowObj.state == "faded") {
-                FadeWindowIn(desktopOverlayWindowObj)  ; help fade between images
-            }
-
             ; Update tracking variables
             lastLeftTime := leftTime
             lastRightTime := rightTime
             lastChangeTime := A_TickCount  ; Reset the 30-minute timer
+
+            if (desktopOverlayWindowObj.state == "faded") {
+                Sleep(1000)  ; ensure images update before fading
+                FadeWindowIn(desktopOverlayWindowObj)  ; help fade between images
+            }
 
             ; Switch back to slow checking
             SetTimer(CheckForChanges, 15000)
