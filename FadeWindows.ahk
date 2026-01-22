@@ -293,8 +293,8 @@ FadeWindowOut(windowObj, slow := false) {
         finalOpacity := fadeMax
     } else {
         startOpacity := 255 - fadeTo
-        endOpacity := 0
-        finalOpacity := 0
+        endOpacity := 1
+        finalOpacity := 1
     }
 
     if (slow) {
@@ -329,6 +329,7 @@ F16:: ToggleCurrentWindow()
 
 ToggleCurrentWindow() {
     global desktopClass
+    global wallpaperSlideshowInterval
 
     try {
         currentWindow := WinGetID("A")
@@ -344,7 +345,22 @@ ToggleCurrentWindow() {
                 desktopObj.handle := desktopHandle
                 ShowWindowTooltip("Desktop handle was corrupted, re-adding...")
             } else {
-                ShowWindowTooltip("Desktop transparency is managed automatically")
+                if (wallpaperSlideshowInterval != 0) {
+                    if (wallpaperSlideshowInterval > 0) {
+                        ; toggle OFF the slideshow checking
+                        wallpaperSlideshowInterval := wallpaperSlideshowInterval * -1
+                        SetTimer(CheckForChanges, 0)
+                        ShowWindowTooltip("Desktop slideshow checking DISABLED")
+                    } else {
+                        ; toggle ON the slideshow checking
+                        wallpaperSlideshowInterval := wallpaperSlideshowInterval * -1
+                        SetTimer(CheckForChanges, 15000)
+                        ShowWindowTooltip("RE-ENABLED desktop slideshow checking")
+                        CheckForChanges()
+                    }
+                } else {
+                    ShowWindowTooltip("Desktop transparency is managed automatically")
+                }
             }
             return
         }
@@ -425,17 +441,22 @@ if (wallpaperSlideshowInterval != 0) {
             }
 
             Sleep(1000)  ; delay to ensure file is fully written
-            leftImgOverlay.Value := leftWallpaper
-            rightImgOverlay.Value := rightWallpaper
-            ; Update tracking variables
-            lastLeftTime := leftTime
-            lastRightTime := rightTime
-            lastChangeTime := A_TickCount  ; Reset the 30-minute timer
-
-            if (desktopOverlayWindowObj.state == "faded") {
-                Sleep(1000)  ; ensure images update before fading
-                FadeWindowIn(desktopOverlayWindowObj)  ; help fade between images
+            ; only update the image that needs it, along with the tracking variable
+            if (leftTime != lastLeftTime) {
+                leftImgOverlay.Value := leftWallpaper
+                lastLeftTime := leftTime
+            } else {
+                rightImgOverlay.Value := rightWallpaper
+                lastRightTime := rightTime
             }
+            lastChangeTime := A_TickCount  ; Reset the 30-minute timer
+            Sleep(5000)
+            if (desktopOverlayWindowObj.state == "faded")
+                FadeWindowIn(desktopOverlayWindowObj)
+
+            ; fadeCheck() {
+            ; }
+            ; SetTimer(fadeCheck, -5000)
 
             ; Switch back to slow checking
             SetTimer(CheckForChanges, 15000)
